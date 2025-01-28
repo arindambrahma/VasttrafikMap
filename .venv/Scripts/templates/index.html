@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Västtrafik Tram Map</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+   body, html {
+    height: 100%;
+    margin: 0;
+}
+
+#map {
+    height: 100vh; /* Full viewport height */
+    width: 100%;
+    position: relative;
+
+}
+:root {
+    --map-tiles-filter: brightness(0.6) invert(1) contrast(3) hue-rotate(200deg) saturate(0.3) brightness(0.7);
+}
+
+@media (prefers-color-scheme: dark) {
+    .map-tiles {
+        filter:var(--map-tiles-filter, none);
+	}
+}
+.overlay-container {
+    display: flex;
+    flex-direction: column; /* Stack elements vertically */
+    position: absolute;
+    top: 0;
+    left: 0;
+    height: 100%; /* Match the height of the map */
+    z-index: 1000;
+
+}
+
+.overlay-row {
+    display: flex;
+    flex-direction: row; /* Arrange elements in a row */
+    margin-bottom: 10px; /* Add gap between tramline list and textbox */
+}
+
+.overlay {
+     padding: 0px; /* Add a tiny bit of padding */
+    overflow-y: auto;
+    width: auto; /* Set width to auto to fit content */
+    white-space: nowrap; /* Prevent text wrapping */
+    background-color: rgba(186, 219, 219, 0.8);
+
+}
+
+.control-label {
+    font-weight: bold;
+    font-family: Aptos, sans-serif;
+    color: rgba(0, 110, 110, 1);
+    font-size: 10pt;
+    margin: 10px; /* Add margin for label */
+
+}
+
+.line-name-boxed {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    padding: 0;
+    font-size: 16px;
+    font-weight: bold;
+    border: 2px solid;
+    text-align: center;
+    width: 30px;
+    height: 30px;
+    line-height: normal;
+    background-color: #ffffff; /* Default background color */
+    color: #000000; /* Default text color */
+    border-color: #000000; /* Default border color */
+    border-radius: 8px; /* Rounded corners for line icons */
+    filter:none;
+}
+
+ .line-option {
+    display: flex;
+    align-items: center;
+    padding-right: 10px;
+    padding-left: 10px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    border: none; /* Remove border */
+    border-right: 0.5mm solid rgba(186, 186, 186, 0.5);
+    cursor: pointer;
+    margin-bottom: 0; /* Remove margin between items */
+    border-radius: 0; /* Remove rounded borders */
+    transition: background-color 0.5s ease; /* Add transition for animation */
+    font-family: Aptos, sans-serif;
+    font-weight: Bold;
+}
+
+.direction-option{
+    display: flex;
+    align-items: center;
+     padding-right: 20px;
+    padding-left: 20px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+    border: none; /* Remove border */
+    cursor: pointer;
+    margin-bottom: 0; /* Remove margin between items */
+    border-radius: 0; /* Remove rounded borders */
+    transition: background-color 0.5s ease; /* Add transition for animation */
+    font-family: Aptos, sans-serif;
+    font-weight: Bold;
+}
+
+.direction-option.selected, .line-option.selected {
+    background-color: rgba(0, 128, 128, 0.7); /* Light teal color with 80% transparency */
+}
+
+.line-text {
+    margin-left: 10px; /* Add margin to the left of the text */
+    font-family: Aptos, sans-serif;
+    font-weight: Bold;
+}
+
+.text-box-container {
+    display: flex;
+    flex-direction: column;
+    padding: 10px; /* Match padding with tram line and direction boxes */
+     background-color: rgba(186, 219, 219, 0.8);
+    border: none; /* Remove border to match tram line and direction boxes */
+    font-family: Aptos, sans-serif;
+    font-weight: Bold;
+}
+
+.text-box {
+    width: 100%;
+    padding: 10px;
+    border: 0px solid #000; /* Match border style with tram line and direction boxes */
+    border-radius: 8px; /* Match border radius with tram line and direction boxes */
+   /* Match text color with tram line and direction boxes */
+    box-sizing: border-box;
+    background-color: rgba(186, 219, 219, 0.8);
+     font-family: Aptos, sans-serif;
+    font-weight: Bold;
+}
+
+.dropdown {
+    position: absolute;
+    background: white;
+    border: 0px solid #ccc;
+    width: 100%;
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1001;
+    margin-top: 50px; /* Add margin to move it downwards */
+}
+
+.dropdown-item {
+    padding: 10px;
+    cursor: pointer;
+}
+
+.dropdown-item:hover {
+    background-color: rgba(0, 128, 128, 0.7);
+}
+
+.departure-container {
+    width: 100%;
+    height: 100%;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    overflow: hidden; /* Remove overflow to prevent scrolling */
+    font-family: Arial, sans-serif;
+
+    background-color: rgba(186, 219, 219, 0.8);
+
+
+}
+
+.departure-board {
+
+    width: 100%;
+    height: 95%;
+    border: none;
+    overflow: auto;
+    padding-bottom: 10px;
+
+      background-color: rgba(186, 219, 219, 0.8);
+   }
+
+.departure-board iframe {
+    width: 100%;
+    height: 99%;
+    border: none;
+    padding-bottom: 30px; /* Ensure no padding in iframe */
+    transform: scale(1); /* Scale the content to 200% */
+    transform-origin: 0 0; /* Ensure scaling starts from the top-left corner */
+}
+
+.departure-item {
+    display: flex;
+    justify-content: space-between;
+    padding: 10px;
+    border-bottom: 1px solid #ddd;
+}
+
+.departure-item:last-child {
+    border-bottom: none;
+}
+
+.departure-item .time {
+    font-weight: bold;
+    color: #333;
+}
+
+.departure-item .details {
+    flex-grow: 1;
+    margin-left: 10px;
+}
+
+.departure-item .line {
+    font-weight: bold;
+    color: #007bff;
+}
+
+.departure-item .direction {
+    color: #555;
+}
+
+.external-link {
+    color: #007bff;
+    text-decoration: none;
+    margin-left: 10px;
+}
+
+.external-link:hover {
+    text-decoration: underline;
+}
+
+   #dark-mode-container {
+    position: fixed; /* Fix the container in place */
+    right: 20px; /* Adjust distance from the right edge of the screen */
+    bottom: 20px; /* Adjust distance from the bottom of the screen */
+    background-color: rgba(0, 0, 0, 0.7); /* Optional: add background color for visibility */
+    padding: 10px;
+    border-radius: 8px; /* Optional: round the corners */
+    color: white;
+    z-index: 9999; /* Ensure it is on top of other content */
+}
+
+/* Optional: Styling for the label and checkbox */
+#dark-mode-container label {
+    display: flex;
+    align-items: center;
+    font-size: 14px;
+    color: white;
+}
+
+#dark-mode-container input {
+    margin-right: 5px;
+}
+
+    </style>
+</head>
+<body>
+
+<!-- The Dark Mode Checkbox fixed to the right -->
+<div id="dark-mode-container">
+    <label>
+        <input type="checkbox" id="toggle-tiles" />
+        <span>Dark Mode</span>
+    </label>
+</div>
+
+    <div id="map"></div>
+
+<div class="overlay-container">
+
+    <div class="overlay-row">
+        <div class="overlay">
+            <label class="control-label">Tram Line</label>
+            <div id="tram-line" class="line-options">
+                <div class="line-option selected" data-value="1">
+                    <div class="line-name-boxed" style="background-color: #ffffff; color: #363D54; border-color: #363D54;">1</div>
+                    <span class="line-text">Tynnered – Östra Sjukhuset</span>
+                </div>
+                <div class="line-option" data-value="2">
+                    <div class="line-name-boxed" style="background-color: #ECD268; color: #000000; border-color: #CBA652;">2</div>
+                    <span class="line-text">Högsbotorp – Mölndal</span>
+                </div>
+                <div class="line-option" data-value="3">
+                    <div class="line-name-boxed" style="background-color: #4CA0D3; color: #FFFFFF; border-color: #3C82A7;">3</div>
+                    <span class="line-text">Marklandsgatan – Kålltorp</span>
+                </div>
+                <div class="line-option" data-value="4">
+                    <div class="line-name-boxed" style="background-color: #46BE8E; color: #FFFFFF; border-color: #37906D;">4</div>
+                    <span class="line-text">Mölndal – Angered</span>
+                </div>
+                <div class="line-option" data-value="5">
+                    <div class="line-name-boxed" style="background-color: #FD7671; color: #FFFFFF; border-color: #C15451;">5</div>
+                    <span class="line-text">Länsmansgården – Östra Sjukhuset</span>
+                </div>
+                <div class="line-option" data-value="6">
+                    <div class="line-name-boxed" style="background-color: #E99F5E; color: #FFFFFF; border-color: #B9824B;">6</div>
+                    <span class="line-text">Länsmansgården – Kortedala</span>
+                </div>
+                <div class="line-option" data-value="7">
+                    <div class="line-name-boxed" style="background-color: #BB7E50; color: #FFFFFF; border-color: #8E6440;">7</div>
+                    <span class="line-text">Tynnered – Bergsjön</span>
+                </div>
+                <div class="line-option" data-value="8">
+                    <div class="line-name-boxed" style="background-color: #BC79BB; color: #FFFFFF; border-color: #905C90;">8</div>
+                    <span class="line-text">Frölunda – Angered</span>
+                </div>
+                <div class="line-option" data-value="9">
+                    <div class="line-name-boxed" style="background-color: #B5DCEA; color: #000000; border-color: #8DB1C2;">9</div>
+                    <span class="line-text">Kungssten – Angered</span>
+                </div>
+                <div class="line-option" data-value="10">
+                    <div class="line-name-boxed" style="background-color: #B6CB9F; color: #000000; border-color: #8FA477;">10</div>
+                    <span class="line-text">Guldheden – Biskopsgården</span>
+                </div>
+                <div class="line-option" data-value="11">
+                    <div class="line-name-boxed" style="background-color: #6C6D71; color: #FFFFFF; border-color: #4F5053;">11</div>
+                    <span class="line-text">Saltholmen – Bergsjön</span>
+                </div>
+            </div>
+        </div>
+        <div class="overlay">
+            <label class="control-label">Direction</label>
+            <div id="tram-direction" class="direction-options">
+
+                <div class="direction-option selected" data-value="">All Directions</div>
+
+            </div>
+
+        </div>
+    </div>
+    <div class="departure-container">
+        <div class="text-box-container">
+            <input type="text" class="text-box" placeholder="Type here...">
+            <div class="dropdown" id="dropdown"></div>
+
+        </div>
+        <div class="departure-board" id="departure-board">
+            <!-- The iframe will be inserted here -->
+        </div>
+    </div>
+</div>
+   <!-- Materialize JS & Leaflet -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+ <script>
+    const map = L.map('map').setView([57.707646, 11.98218], 13);
+
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
+
+
+
+    const markersLayer = L.layerGroup().addTo(map);
+
+    const tramLineContainer = document.getElementById('tram-line');
+    const tramDirectionContainer = document.getElementById('tram-direction');
+    const dropdown = document.getElementById('dropdown');
+    const departureBoard = document.getElementById('departure-board');
+
+    document.addEventListener('DOMContentLoaded', function () {
+        // Set default selections
+        document.querySelector('.line-option[data-value="1"]').classList.add('selected');
+        document.querySelector('.direction-option[data-value=""]').classList.add('selected');
+
+        updateDirections();
+        updateTramPositions();
+
+        tramLineContainer.addEventListener('click', (event) => {
+            if (event.target.closest('.line-option')) {
+                event.target.closest('.line-option').classList.toggle('selected');
+                updateDirections();
+                updateTramPositions();
+            }
+        });
+
+        tramDirectionContainer.addEventListener('click', (event) => {
+            if (event.target.closest('.direction-option')) {
+                document.querySelectorAll('.direction-option').forEach(option => {
+                    option.classList.remove('selected');
+                });
+                event.target.closest('.direction-option').classList.add('selected');
+                updateTramPositions();
+            }
+        });
+
+        setInterval(updateTramPositions, 2000);
+
+        const searchBox = document.querySelector('.text-box');
+
+        searchBox.addEventListener('input', function () {
+            const query = searchBox.value;
+            console.log(`User input: ${query}`); // Log user input
+            if (query.length > 2) { // Start searching after 3 characters
+                fetch(`/search-stop?query=${query}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Search results:', data); // Log search results
+                        dropdown.innerHTML = ''; // Clear previous results
+                        if (data.results) {
+                            data.results.forEach(stop => {
+                                const item = document.createElement('div');
+                                item.className = 'dropdown-item';
+                                item.textContent = stop.name;
+                                item.addEventListener('click', () => {
+                                    searchBox.value = stop.name;
+                                    dropdown.innerHTML = ''; // Clear dropdown
+                                    fetchDepartureBoard(stop.gid);
+                                });
+                                dropdown.appendChild(item);
+                            });
+                        }
+                    })
+                    .catch(error => console.error('Error fetching stop areas:', error));
+            } else {
+                dropdown.innerHTML = ''; // Clear dropdown if query is too short
+            }
+        });
+
+        // Set default stop to "Olivedalsgatan, Göteborg"
+        const defaultStopName = "Olivedalsgatan, Göteborg";
+        const defaultStopGid = "9021014005140000"; // Replace with the actual GID for Olivedalsgatan, Göteborg
+        searchBox.value = defaultStopName;
+        fetchDepartureBoard(defaultStopGid);
+    });
+
+    function updateDirections() {
+        const selectedLines = Array.from(document.querySelectorAll('.line-option.selected')).map(option => option.dataset.value);
+
+        if (selectedLines.length) {
+            fetch(`/available_directions?line=${selectedLines.join(',')}`)
+                .then(response => response.json())
+                .then(directions => {
+                    tramDirectionContainer.innerHTML = `
+                        <div class="direction-option selected" data-value="">All Directions</div>
+                    `;
+                    directions.forEach(direction => {
+                        const div = document.createElement('div');
+                        div.className = 'direction-option';
+                        div.dataset.value = direction;
+                        div.textContent = direction;
+                        tramDirectionContainer.appendChild(div);
+                    });
+                })
+                .catch(error => console.error('Error fetching directions:', error));
+        } else {
+            tramDirectionContainer.innerHTML = `
+                <div class="direction-option selected" data-value="">All Directions</div>
+            `;
+        }
+    }
+
+
+let markersLayerGroup = L.layerGroup().addTo(map); // Marker layer group to manage all markers
+let markers = {}; // Store markers by tram detailsReference (unique ID)
+let debounceTimeout = null; // Debounce timeout to manage rapid updates
+
+function updateTramPositions() {
+    const selectedLines = Array.from(document.querySelectorAll('.line-option.selected')).map(option => option.dataset.value);
+    const selectedDirection = document.querySelector('.direction-option.selected').dataset.value;
+
+    // If no lines are selected, clear all markers
+    if (selectedLines.length === 0) {
+        markersLayerGroup.clearLayers();
+        markers = {}; // Reset markers object
+        return;
+    }
+
+    // Store current tram detailsReference for cleanup later
+    let currentTrams = new Set();
+
+    // Debounce the update to avoid flickering from rapid changes
+    if (debounceTimeout) clearTimeout(debounceTimeout);
+    debounceTimeout = setTimeout(() => {
+        selectedLines.forEach(line => {
+            fetch(`/tram_positions?line=${line}&direction=${selectedDirection}`)
+                .then(response => response.json())
+                .then(data => {
+                    data.forEach(tram => {
+                        const lat = tram.latitude;
+                        const lng = tram.longitude;
+                        const direction = tram.direction;
+                        const detailsReference = tram.detailsReference; // Unique tram identifier
+
+                        if ((selectedDirection === "" || direction === selectedDirection) && lat && lng) {
+                            const iconHtml = `<div class="line-name-boxed" style="background-color: ${getBoxColor(tram.line.name)}; color: ${getTextColor(tram.line.name)}; border-color: ${getBorderColor(tram.line.name)};">${tram.line.name}</div>`;
+                            const icon = L.divIcon({
+                                html: iconHtml,
+                                className: '',
+                                iconSize: [30, 30],
+                                iconAnchor: [15, 15],
+                            });
+
+                            // Track the tram using its detailsReference
+                            currentTrams.add(detailsReference);
+
+                            // Check if the marker for this tram already exists
+                            if (markers[detailsReference]) {
+                                // Update position if it has changed
+                                const markerLatLng = markers[detailsReference].getLatLng();
+                                const hasPositionChanged = markerLatLng.lat !== lat || markerLatLng.lng !== lng;
+
+                                if (hasPositionChanged) {
+                                    markers[detailsReference].setLatLng([lat, lng]); // Update marker position
+                                }
+                            } else {
+                                // Add a new marker for the tram
+                                const marker = L.marker([lat, lng], { icon }).addTo(markersLayerGroup)
+                                    .bindPopup(`<b>Tram Line: ${tram.line.name}</b><br>Direction: ${tram.direction}<br>Latitude: ${lat}<br>Longitude: ${lng}`);
+                                markers[detailsReference] = marker; // Store the new marker
+                            }
+                        }
+                    });
+
+                    // Remove markers that are no longer part of the selected lines
+                    Object.keys(markers).forEach(key => {
+                        if (!currentTrams.has(key)) {
+                            markers[key].remove(); // Remove the marker if it's no longer in the selected lines
+                            delete markers[key]; // Delete from markers object
+                        }
+                    });
+                })
+                .catch(error => console.error('Error fetching tram positions:', error));
+        });
+    }, 200); // Delay the fetch by 100ms to avoid rapid updates
+}
+
+
+
+    function getBoxColor(line) {
+        const colors = {
+            "1": "#ffffff",
+            "2": "#ECD268",
+            "3": "#4CA0D3",
+            "4": "#46BE8E",
+            "5": "#FD7671",
+            "6": "#E99F5E",
+            "7": "#BB7E50",
+            "8": "#BC79BB",
+            "9": "#B5DCEA",
+            "10": "#B6CB9F",
+            "11": "#6C6D71"
+        };
+        return colors[line] || "#FFFFFF"; // Default to white if no color is defined
+    }
+
+    function getTextColor(line) {
+        const colors = {
+            "1": "#363D54",
+            "2": "#000000",
+            "3": "#FFFFFF",
+            "4": "#FFFFFF",
+            "5": "#FFFFFF",
+            "6": "#FFFFFF",
+            "7": "#FFFFFF",
+            "8": "#FFFFFF",
+            "9": "#000000",
+            "10": "#000000",
+            "11": "#FFFFFF"
+        };
+        return colors[line] || "#000000"; // Default to black if no color is defined
+    }
+
+    function getBorderColor(line) {
+        const colors = {
+            "1": "#363D54",
+            "2": "#CBA652",
+            "3": "#3C82A7",
+            "4": "#37906D",
+            "5": "#C15451",
+            "6": "#B9824B",
+            "7": "#8E6440",
+            "8": "#905C90",
+            "9": "#8DB1C2",
+            "10": "#8FA477",
+            "11": "#4F5053"
+        };
+        return colors[line] || "#000000"; // Default to black if no color is defined
+    }
+
+    function fetchDepartureBoard(stopGid) {
+        const iframeUrl = `https://avgangstavla.vasttrafik.se/?source=vasttrafikse-depatureboardlinkgenerator&stopAreaGid=${stopGid}`;
+        departureBoard.innerHTML = `<iframe id="departure-iframe" src="${iframeUrl}" width="100%" frameborder="0" onload="resizeIframe(this)"></iframe>`;
+    }
+
+    function resizeIframe(iframe) {
+        iframe.style.transform = 'scale(1)'; // Scale the content to 200%
+        iframe.style.transformOrigin = '0 0'; // Ensure scaling starts from the top-left corner
+        setTimeout(() => {
+            const contentHeight = iframe.contentWindow.document.body.scrollHeight * 2; // Adjust height to match scaled content
+            iframe.style.height = contentHeight + 'px';
+            departureBoard.style.height = contentHeight + 'px'; // Adjust container height
+        }, 500); // Delay to ensure content is fully loaded
+    }
+
+    window.addEventListener('message', function(event) {
+        if (event.origin === 'https://avgangstavla.vasttrafik.se') {
+            const iframe = document.getElementById('departure-iframe');
+            const contentHeight = event.data * 2; // Adjust height to match scaled content
+            iframe.style.height = contentHeight + 'px';
+            departureBoard.style.height = contentHeight + 'px'; // Adjust container height
+        }
+    });
+
+     document.addEventListener('DOMContentLoaded', function () {
+    const toggleTilesCheckbox = document.getElementById('toggle-tiles');
+    let tileLayer; // To store the tile layer
+
+    // Function to enable or disable the tile layer
+    function toggleTileLayer() {
+        if (toggleTilesCheckbox.checked) {
+            // Add the tile layer if it's enabled
+            tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+                className: 'map-tiles'
+            }).addTo(map);
+        } else {
+            // Remove the tile layer if it's disabled
+            if (tileLayer) {
+                map.removeLayer(tileLayer);
+            }
+        }
+    }
+
+    // Initialize the checkbox state
+    toggleTilesCheckbox.addEventListener('change', toggleTileLayer);
+
+    // Call toggleTileLayer on page load to ensure the correct initial state
+    toggleTileLayer();
+});
+</script>
+</body>
+</html>
+
